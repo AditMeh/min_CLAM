@@ -97,7 +97,7 @@ if __name__ == '__main__':
 		output_path = os.path.join(args.feat_dir, 'h5_files', bag_name)
 		time_start = time.time()
 		wsi = openslide.open_slide(slide_file_path)
-		dataset = Whole_Slide_Bag_FP(file_path=h5_file_path, 
+		dataset = w(file_path=h5_file_path, 
 							   		 wsi=wsi, 
 									 img_transforms=img_transforms)
 
