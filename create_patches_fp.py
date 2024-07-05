@@ -44,7 +44,7 @@ def patching(WSI_object, **kwargs):
 def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_dir, 
 				  patch_size = 256, step_size = 256, 
 				  seg_params = {'seg_level': 0, 'sthresh': 8, 'mthresh': 7, 'close': 4, 'use_otsu': False,
-				  'keep_ids': 'none', 'exclude_ids': 'none'},
+				  'keep_ids': [], 'exclude_ids': []},
 				  filter_params = {'a_t':100, 'a_h': 16, 'max_n_holes':8}, 
 				  vis_params = {'vis_level': -1, 'line_thickness': 500},
 				  patch_params = {'use_padding': True, 'contour_fn': 'four_pt'},
@@ -172,9 +172,9 @@ if __name__ == '__main__':
 			os.makedirs(val, exist_ok=True)
 
 	seg_params = {'scale': 2, 'sthresh': 8, 'mthresh': 7, 'close': 4, 'use_otsu': False,
-				  'keep_ids': 'none', 'exclude_ids': 'none'}
+				  'keep_ids': [], 'exclude_ids': []}
 	filter_params = {'a_t':100, 'a_h': 16, 'max_n_holes':8}
-	vis_params = {'scale': 2, 'line_thickness': 250}
+	vis_params = {'scale': 2, 'line_thickness': 10}
 	patch_params = {'use_padding': True, 'contour_fn': 'four_pt'}
 
 	parameters = {'seg_params': seg_params,

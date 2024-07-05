@@ -88,7 +88,7 @@ class WholeSlideImage(object):
         asset_dict = {'holes': self.holes_tissue, 'tissue': self.contours_tissue}
         save_pkl(mask_file, asset_dict)
 
-    def segmentTissue(self, scale=0, sthresh=20, sthresh_up = 255, mthresh=7, close = 0, use_otsu=False, 
+    def segmentTissue(self, scale=2, sthresh=20, sthresh_up = 255, mthresh=7, close = 0, use_otsu=False, 
                             filter_params={'a_t':100}, ref_patch_size=512, exclude_ids=[], keep_ids=[]):
         """
             Segment the tissue via HSV -> Median thresholding -> Binary threshold
@@ -117,6 +117,8 @@ class WholeSlideImage(object):
                 # actual area of foreground contour region
                 a = a - np.array(hole_areas).sum()
                 if a == 0: continue
+                
+                # Use tissue if it's big enough
                 if tuple((filter_params['a_t'],)) < tuple((a,)): 
                     filtered.append(cont_idx)
                     all_holes.append(holes)
@@ -143,14 +145,13 @@ class WholeSlideImage(object):
             return foreground_contours, hole_contours
         
 
-        resized = [int(self.level_dim[0][0] * 1/scale), int(self.level_dim[0][1] * 1/scale)]
-        img = np.array(self.wsi.read_region((0,0), 0, self.level_dim[0]).convert("RGB"))
-        img = resize(img, resized)
+        resized = [int(self.level_dim[1][1] * 1/scale), int(self.level_dim[1][0] * 1/scale)]
+        img = np.array(self.wsi.read_region((0,0), 1, self.level_dim[1]).convert("RGB"))
+        img = (resize(img, resized)*255).astype(np.uint8) 
 
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)  # Convert to HSV space
         img_med = cv2.medianBlur(img_hsv[:,:,1], mthresh)  # Apply median blurring
-        
-       
+        print(img.shape)
         # Thresholding
         if use_otsu:
             _, img_otsu = cv2.threshold(img_med, 0, sthresh_up, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
@@ -162,7 +163,7 @@ class WholeSlideImage(object):
             kernel = np.ones((close, close), np.uint8)
             img_otsu = cv2.morphologyEx(img_otsu, cv2.MORPH_CLOSE, kernel)                 
 
-        scale = resized
+        scale = [scale, scale]
         scaled_ref_patch_area = int(ref_patch_size**2 / (scale[0] * scale[1]))
         filter_params = filter_params.copy()
         filter_params['a_t'] = filter_params['a_t'] * scaled_ref_patch_area
@@ -170,11 +171,25 @@ class WholeSlideImage(object):
         
         # Find and filter contours
         contours, hierarchy = cv2.findContours(img_otsu, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE) # Find contours 
-        hierarchy = np.squeeze(hierarchy, axis=(0,))[:, 2:]
-        if filter_params: foreground_contours, hole_contours = _filter_contours(contours, hierarchy, filter_params)  # Necessary for filtering out artifacts
+        
+        cpy = np.copy(img)
+        cv2.drawContours(cpy, contours, -1, (0, 0, 0), 5)
+        # Save the image with contours
+        cv2.imwrite('contours_image.jpg', cpy)
 
-        self.contours_tissue = self.scaleContourDim(foreground_contours, scale)
-        self.holes_tissue = self.scaleHolesDim(hole_contours, scale)
+        print(hierarchy.shape)
+        hierarchy = np.squeeze(hierarchy, axis=(0,))[:, 2:]
+        if filter_params: 
+            foreground_contours, hole_contours = _filter_contours(contours, hierarchy, filter_params)  # Necessary for filtering out artifacts
+        
+        # print(foreground_contours, hole_contours)
+        # print(exclude_ids, keep_ids)
+        # self.contours_tissue = self.scaleContourDim(foreground_contours, scale)
+        # self.holes_tissue = self.scaleHolesDim(hole_contours, scale)
+
+
+        self.contours_tissue = foreground_contours
+        self.holes_tissue = hole_contours
 
         #exclude_ids = [0,7,9]
         if len(keep_ids) > 0:
@@ -185,31 +200,32 @@ class WholeSlideImage(object):
         self.contours_tissue = [self.contours_tissue[i] for i in contour_ids]
         self.holes_tissue = [self.holes_tissue[i] for i in contour_ids]
 
-    def visWSI(self, scale=0, color = (0,255,0), hole_color = (0,0,255), annot_color=(255,0,0), 
+    def visWSI(self, scale=0, color = (255,255,0), hole_color = (0,0,255), annot_color=(255,0,0), 
                     line_thickness=250, max_size=None, top_left=None, bot_right=None, custom_downsample=1, view_slide_only=False,
                     number_contours=False, seg_display=True, annot_display=True):
-        
-        resized = [int(self.level_dim[0][0] * 1/scale), int(self.level_dim[0][1] * 1/scale)]
-        downsample = resized
-        scale = [1/downsample[0], 1/downsample[1]]
-        
 
         top_left = (0,0)
-        resized = [int(self.level_dim[0][0] * 1/scale), int(self.level_dim[0][1] * 1/scale)]
-        img = np.array(self.wsi.read_region((0,0), 0, self.level_dim[0]).convert("RGB"))
+        resized = [int(self.level_dim[1][1] * 1/scale), int(self.level_dim[1][0] * 1/scale)]
+        img = np.array(self.wsi.read_region((0,0), 1, self.level_dim[1]).convert("RGB"))
         img = resize(img, resized)
         
+        scale = [scale, scale]
         if not view_slide_only:
             offset = tuple(-(np.array(top_left) * scale).astype(int))
             line_thickness = int(line_thickness * math.sqrt(scale[0] * scale[1]))
+
+            print(len(self.contours_tissue[0]))
+            print(np.unique(self.contours_tissue))
+            print(self.contours_tissue)
             if self.contours_tissue is not None and seg_display:
                 if not number_contours:
-                    cv2.drawContours(img, self.scaleContourDim(self.contours_tissue, scale), 
+                    print("here")
+                    cv2.drawContours(img, self.contours_tissue, 
                                      -1, color, line_thickness, lineType=cv2.LINE_8, offset=offset)
 
                 else: # add numbering to each contour
                     for idx, cont in enumerate(self.contours_tissue):
-                        contour = np.array(self.scaleContourDim(cont, scale))
+                        contour = np.array(cont)
                         M = cv2.moments(contour)
                         cX = int(M["m10"] / (M["m00"] + 1e-9))
                         cY = int(M["m01"] / (M["m00"] + 1e-9))
@@ -225,8 +241,9 @@ class WholeSlideImage(object):
             if self.contours_tumor is not None and annot_display:
                 cv2.drawContours(img, self.scaleContourDim(self.contours_tumor, scale), 
                                  -1, annot_color, line_thickness, lineType=cv2.LINE_8, offset=offset)
-        
-        img = Image.fromarray(img)
+
+
+        img = Image.fromarray((img * 255).astype(np.uint8))
     
         w, h = img.size
         if custom_downsample > 1:
@@ -394,14 +411,14 @@ class WholeSlideImage(object):
     def process_contour(self, cont, contour_holes, scale, save_path, patch_size = 256, step_size = 256,
         contour_fn='four_pt', use_padding=True, top_left=None, bot_right=None):
 
-        resized = [int(self.level_dim[0][0] * 1/scale), int(self.level_dim[0][1] * 1/scale)]
+        resized = [int(self.level_dim[1][0] * 1/scale), int(self.level_dim[1][1] * 1/scale)]
    
         start_x, start_y, w, h = cv2.boundingRect(cont) if cont is not None else (0, 0, resized[0], resized[1])
 
         patch_downsample = resized
         ref_patch_size = (patch_size*patch_downsample[0], patch_size*patch_downsample[1])
         
-        img_w, img_h = self.level_dim[0]
+        img_w, img_h = self.level_dim[1]
         if use_padding:
             stop_y = start_y+h
             stop_x = start_x+w
