@@ -119,6 +119,7 @@ class WholeSlideImage(object):
                 if a == 0: continue
                 
                 # Use tissue if it's big enough
+                # print(a, filter_params['a_t'])
                 if tuple((filter_params['a_t'],)) < tuple((a,)): 
                     filtered.append(cont_idx)
                     all_holes.append(holes)
@@ -137,6 +138,7 @@ class WholeSlideImage(object):
                 
                 # filter these holes
                 for hole in unfilered_holes:
+
                     if cv2.contourArea(hole) > filter_params['a_h']:
                         filtered_holes.append(hole)
 
@@ -151,7 +153,6 @@ class WholeSlideImage(object):
 
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)  # Convert to HSV space
         img_med = cv2.medianBlur(img_hsv[:,:,1], mthresh)  # Apply median blurring
-        print(img.shape)
         # Thresholding
         if use_otsu:
             _, img_otsu = cv2.threshold(img_med, 0, sthresh_up, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
@@ -177,12 +178,10 @@ class WholeSlideImage(object):
         # Save the image with contours
         cv2.imwrite('contours_image.jpg', cpy)
 
-        print(hierarchy.shape)
         hierarchy = np.squeeze(hierarchy, axis=(0,))[:, 2:]
         if filter_params: 
             foreground_contours, hole_contours = _filter_contours(contours, hierarchy, filter_params)  # Necessary for filtering out artifacts
         
-        # print(foreground_contours, hole_contours)
         # print(exclude_ids, keep_ids)
         # self.contours_tissue = self.scaleContourDim(foreground_contours, scale)
         # self.holes_tissue = self.scaleHolesDim(hole_contours, scale)
@@ -214,12 +213,11 @@ class WholeSlideImage(object):
             offset = tuple(-(np.array(top_left) * scale).astype(int))
             line_thickness = int(line_thickness * math.sqrt(scale[0] * scale[1]))
 
-            print(len(self.contours_tissue[0]))
-            print(np.unique(self.contours_tissue))
-            print(self.contours_tissue)
+            # print(len(self.contours_tissue[0]))
+            # print(np.unique(self.contours_tissue))
+            # print(self.contours_tissue)
             if self.contours_tissue is not None and seg_display:
                 if not number_contours:
-                    print("here")
                     cv2.drawContours(img, self.contours_tissue, 
                                      -1, color, line_thickness, lineType=cv2.LINE_8, offset=offset)
 
@@ -235,11 +233,11 @@ class WholeSlideImage(object):
                                 cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 10)
 
                 for holes in self.holes_tissue:
-                    cv2.drawContours(img, self.scaleContourDim(holes, scale), 
+                    cv2.drawContours(img, holes, 
                                      -1, hole_color, line_thickness, lineType=cv2.LINE_8)
             
             if self.contours_tumor is not None and annot_display:
-                cv2.drawContours(img, self.scaleContourDim(self.contours_tumor, scale), 
+                cv2.drawContours(img, self.contours_tumor, 
                                  -1, annot_color, line_thickness, lineType=cv2.LINE_8, offset=offset)
 
 
@@ -297,10 +295,10 @@ class WholeSlideImage(object):
                 target_patch_size, target_patch_size))
 
         patch_downsample = (int(self.level_downsamples[patch_level][0]), int(self.level_downsamples[patch_level][1]))
-        ref_patch_size = (patch_size*patch_downsample[0], patch_size*patch_downsample[1])
+        ref_patch_size = (patch_size, patch_size)
         
-        step_size_x = step_size * patch_downsample[0]
-        step_size_y = step_size * patch_downsample[1]
+        step_size_x = step_size
+        step_size_y = step_size
         
         if isinstance(contour_fn, str):
             if contour_fn == 'four_pt':
@@ -415,8 +413,7 @@ class WholeSlideImage(object):
    
         start_x, start_y, w, h = cv2.boundingRect(cont) if cont is not None else (0, 0, resized[0], resized[1])
 
-        patch_downsample = resized
-        ref_patch_size = (patch_size*patch_downsample[0], patch_size*patch_downsample[1])
+        ref_patch_size = (patch_size, patch_size)
         
         img_w, img_h = self.level_dim[1]
         if use_padding:
@@ -460,8 +457,8 @@ class WholeSlideImage(object):
             cont_check_fn = contour_fn
 
         
-        step_size_x = step_size * patch_downsample[0]
-        step_size_y = step_size * patch_downsample[1]
+        step_size_x = step_size
+        step_size_y = step_size
 
         x_range = np.arange(start_x, stop_x, step=step_size_x)
         y_range = np.arange(start_y, stop_y, step=step_size_y)
@@ -481,13 +478,10 @@ class WholeSlideImage(object):
         print('Extracted {} coordinates'.format(len(results)))
 
         if len(results)>0:
-            asset_dict = {'coords' :          results}
+            asset_dict = {'coords' : results}
             
             attr = {'patch_size' :            patch_size, # To be considered...
-                    'scale' :           scale,
-                    'downsample':             resized,
-                    'downsampled_level_dim' : tuple(np.array(self.level_dim[patch_level])),
-                    'level_dim':              self.level_dim[patch_level],
+                    'scale' :                 scale,
                     'name':                   self.name,
                     'save_path':              save_path}
 

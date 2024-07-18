@@ -11,9 +11,9 @@ import pdb
 import pandas as pd
 from tqdm import tqdm
 
-def stitching(file_path, wsi_object, downscale = 64):
+def stitching(file_path, wsi_object, scale = 64):
 	start = time.time()
-	heatmap = StitchCoords(file_path, wsi_object, downscale=downscale, bg_color=(0,0,0), alpha=-1, draw_grid=False)
+	heatmap = StitchCoords(file_path, wsi_object, scale=scale, bg_color=(0,0,0), alpha=-1, draw_grid=False)
 	total_time = time.time() - start
 	
 	return heatmap, total_time
@@ -98,19 +98,20 @@ def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_d
 			mask = WSI_object.visWSI(**current_vis_params)
 			mask_path = os.path.join(mask_save_dir, slide_id+'.jpg')
 			mask.save(mask_path)
-		exit()
+		# exit()
 
 		patch_time_elapsed = -1 # Default time
 		if patch:
-			current_patch_params.update({'patch_level': patch_level, 'patch_size': patch_size, 'step_size': step_size, 
+			current_patch_params.update({'scale': scale, 'patch_size': patch_size, 'step_size': step_size, 
 										 'save_path': patch_save_dir})
 			file_path, patch_time_elapsed = patching(WSI_object = WSI_object,  **current_patch_params,)
 		
+  
 		stitch_time_elapsed = -1
 		if stitch:
 			file_path = os.path.join(patch_save_dir, slide_id+'.h5')
 			if os.path.isfile(file_path):
-				heatmap, stitch_time_elapsed = stitching(file_path, WSI_object, downscale=64)
+				heatmap, stitch_time_elapsed = stitching(file_path, WSI_object, scale=scale)
 				stitch_path = os.path.join(stitch_save_dir, slide_id+'.jpg')
 				heatmap.save(stitch_path)
 
@@ -173,7 +174,7 @@ if __name__ == '__main__':
 
 	seg_params = {'scale': 2, 'sthresh': 8, 'mthresh': 7, 'close': 4, 'use_otsu': False,
 				  'keep_ids': [], 'exclude_ids': []}
-	filter_params = {'a_t':100, 'a_h': 16, 'max_n_holes':8}
+	filter_params = {'a_t':50, 'a_h': 1, 'max_n_holes':8}
 	vis_params = {'scale': 2, 'line_thickness': 10}
 	patch_params = {'use_padding': True, 'contour_fn': 'four_pt'}
 
